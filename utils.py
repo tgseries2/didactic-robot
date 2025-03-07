@@ -6,36 +6,44 @@ from config import CONFIG
 
 web3 = Web3(Web3.HTTPProvider(CONFIG["RPC_URL"]))
 
-# Factory & Pair ABIs
-UNISWAP_FACTORY_ABI = '[{"constant":true,"inputs":[],"name":"allPairsLength","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[{"internalType":"uint256","name":"","type":"uint256"}],"name":"allPairs","outputs":[{"internalType":"address","name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"}]'
-PAIR_ABI = '[{"constant":true,"inputs":[],"name":"token0","outputs":[{"internalType":"address","name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"token1","outputs":[{"internalType":"address","name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"}]'
+PAIR_ABI = '''
+[
+    {"constant":true,"inputs":[],"name":"getReserves","outputs":[{"name":"_reserve0","type":"uint112"},{"name":"_reserve1","type":"uint112"},{"name":"_blockTimestampLast","type":"uint32"}],"payable":false,"stateMutability":"view","type":"function"}
+]
+'''
 
-def get_all_pairs(dex_factory):
-    """Fetch all token pairs from a DEX factory."""
-    factory_contract = web3.eth.contract(address=dex_factory, abi=UNISWAP_FACTORY_ABI)
-    total_pairs = factory_contract.functions.allPairsLength().call()
+def get_reserves(factory, token_a, token_b):
+    """Fetch token reserves from a DEX pair contract."""
+    sorted_tokens = sorted([token_a, token_b])  # Sort for correct order
+    salt = Web3.solidityKeccak(["address", "address"], sorted_tokens)
+    
+    pair_address = Web3.toChecksumAddress(
+        Web3.keccak(hexstr=factory + salt.hex())[12:]
+    )
 
-    token_pairs = []
-    for i in range(total_pairs):
-        pair_address = factory_contract.functions.allPairs(i).call()
-        pair_contract = web3.eth.contract(address=pair_address, abi=PAIR_ABI)
+    pair_contract = web3.eth.contract(address=pair_address, abi=PAIR_ABI)
 
-        token0 = pair_contract.functions.token0().call()
-        token1 = pair_contract.functions.token1().call()
-
-        token_pairs.append((token0, token1))
-    return token_pairs
+    try:
+        reserves = pair_contract.functions.getReserves().call()
+        return reserves
+    except Exception as e:
+        print(f"❌ Error fetching reserves: {e}")
+        return 0, 0
 
 def send_private_transaction(signed_tx):
-    """Submit a transaction privately via bloXroute/Eden."""
+    """Submit a transaction privately via bloXroute."""
     private_rpc = CONFIG["PRIVATE_RPC_URL"]
-
+    
     payload = {
         "jsonrpc": "2.0",
-        "method": "eth_sendPrivateTransaction",
-        "params": [{"tx": signed_tx.rawTransaction.hex()}],
+        "method": "eth_sendRawTransaction",
+        "params": [signed_tx.rawTransaction.hex()],
         "id": 1
     }
 
     response = requests.post(private_rpc, json=payload).json()
-    return response.get("result", "TX Failed")
+    if "result" in response:
+        return response["result"]
+    else:
+        print(f"❌ Private TX failed: {response}")
+        return None
