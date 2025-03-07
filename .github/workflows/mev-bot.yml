@@ -1,0 +1,52 @@
+name: MEV Arbitrage Bot
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '*/10 * * * *'  # Runs every 10 minutes
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Set Up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Dependencies
+      run: |
+        pip install web3 requests
+
+    - name: Create Config File
+      run: |
+        echo 'CONFIG = {
+          "PRIVATE_KEY": "${{ secrets.PRIVATE_KEY }}",
+          "WALLET_ADDRESS": "${{ secrets.WALLET_ADDRESS }}",
+          "RPC_URL": "https://mainnet.infura.io/v3/${{ secrets.INFURA_API_KEY }}",
+          "PRIVATE_RPC_URL": "https://mev.api.blxrbdn.com",
+          "GAS_LIMIT": 3000000,
+          "GAS_PRICE": "50",
+          "DEX_FACTORIES": {
+            "UniswapV2": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5Aa6f",
+            "Sushiswap": "0xC0AEe478e3658e2610c5F7A4A2E1777ce9e4f2Ac"
+          },
+          "DEX_ROUTERS": {
+            "UniswapV2": "0xE592427A0AEce92De3Edee1F18E0157C05861564",
+            "Sushiswap": "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"
+          },
+          "TOKEN_PAIRS": [
+            ["0xA0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"],
+            ["0x6B175474E89094C44Da98b954EedeAC495271d0F", "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"]
+          ]
+        }' > config.py
+
+    - name: Run MEV Arbitrage Bot
+      run: python main.py
