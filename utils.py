@@ -15,7 +15,7 @@ PAIR_ABI = '''
 def get_reserves(factory, token_a, token_b):
     """Fetch token reserves from a DEX pair contract."""
     sorted_tokens = sorted([token_a, token_b])  # Sort for correct order
-    salt = Web3.solidityKeccak(["address", "address"], sorted_tokens)
+    salt = Web3.solidity_keccak(["address", "address"], sorted_tokens)
     
     pair_address = Web3.toChecksumAddress(
         Web3.keccak(hexstr=factory + salt.hex())[12:]
